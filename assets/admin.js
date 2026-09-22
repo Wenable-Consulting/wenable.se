@@ -112,6 +112,21 @@
     renderAddBar();
   }
 
+  /* nästa lediga referensnummer, format WEN-<år>-<löpnr, 3 siffror>.
+     Läser högsta befintliga löpnr för innevarande år ur cachen och räknar upp. */
+  function nextRef() {
+    var year = new Date().getFullYear();
+    var prefix = "WEN-" + year + "-";
+    var max = 0;
+    loadAssignments().forEach(function (a) {
+      var m = /^WEN-(\d{4})-(\d+)$/.exec(String(a.ref || "").trim());
+      if (m && Number(m[1]) === year) max = Math.max(max, Number(m[2]));
+    });
+    var next = String(max + 1);
+    while (next.length < 3) next = "0" + next;
+    return prefix + next;
+  }
+
   /* --------------------------------------------------------------- styles */
   function injectStyles() {
     var css = [
@@ -150,6 +165,8 @@
       ".wadm-input:focus,.wadm-select:focus,.wadm-textarea:focus{outline:none;border-color:var(--orange,#f39019);background:rgba(255,255,255,.05);}",
       ".wadm-textarea{resize:vertical;min-height:84px;line-height:1.5;}",
       ".wadm-select{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted,#8aa0bd) 50%),linear-gradient(135deg,var(--muted,#8aa0bd) 50%,transparent 50%);background-position:calc(100% - 18px) 17px,calc(100% - 13px) 17px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;}",
+      /* native <option> popups don't inherit the field's transparent background — give them a solid one so text isn't invisible until hover */
+      ".wadm-select option{background:var(--bg-2,#0e1e36);color:var(--ink,#eaf1fb);}",
       ".wadm-hint{font-size:12px;color:var(--muted,#8aa0bd);margin-top:7px;line-height:1.45;}",
       ".wadm-error{font-size:13px;color:#ff8b8b;margin:2px 0 16px;min-height:1px;}",
       ".wadm-actions{display:flex;align-items:center;gap:14px;margin-top:26px;flex-wrap:wrap;}",
@@ -524,6 +541,7 @@
     if (!isLoggedIn()) { openLogin(); return; }
     editingId = null;
     $("#wadm-add-form", addOverlay).reset();
+    $("#wadm-add-form", addOverlay).elements.ref.value = nextRef();
     setAddModalMode("new");
     addOverlay.classList.add("open");
     $("#wadm-add-err", addOverlay).textContent = "";
