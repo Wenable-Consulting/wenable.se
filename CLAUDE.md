@@ -10,7 +10,7 @@ Publik marknadsföringssajt för **Wenable Consulting AB** (specialistkonsulter 
 
 | Del | Detalj |
 |-----|--------|
-| **Repo** | https://github.com/wenablese/wenable.se (publikt), remote `origin`, gren `main` |
+| **Repo** | https://github.com/Wenable-Consulting/wenable.se (publikt, organisationen Wenable-Consulting), remote `origin`, gren `main` |
 | **Hosting** | GitHub Pages (Deploy from branch: `main` / root). **Ingen byggsteg** – ren statisk HTML |
 | **Domän** | wenable.se, registrerad hos **STRATO** (DNS hanteras i STRATOs panel) |
 | **HTTPS** | Let's Encrypt, utfärdas automatiskt av GitHub. Enforce HTTPS på |
@@ -21,7 +21,7 @@ Publik marknadsföringssajt för **Wenable Consulting AB** (specialistkonsulter 
 |-----|------|-------|
 | A | `@` | `185.199.108.153` (GitHub Pages) |
 | AAAA | `@` | `2606:50c0:8000::153` |
-| CNAME | `www` | `wenablese.github.io.` |
+| CNAME | `www` | `wenable-consulting.github.io.` |
 | CNAME | `autodiscover` | `autodiscover.outlook.com.` — **Microsoft 365-e-post, RÖR EJ** |
 
 Filen `CNAME` i repot (`wenable.se`) binder domänen till Pages – ta inte bort den.
