@@ -644,6 +644,27 @@ footer.foot {
 }
 .assign-detail .d-section p { font-size: 15px; color: var(--muted-2); }
 .assign-detail .d-section p + p { margin-top: 12px; }
+.assign-detail .d-section > * + p,
+.assign-detail .d-section > p + ul,
+.assign-detail .d-section > p + ol,
+.assign-detail .d-section > ul + ul,
+.assign-detail .d-section > ul + ol,
+.assign-detail .d-section > ol + ul,
+.assign-detail .d-section > ol + ol { margin-top: 12px; }
+.assign-detail .d-section h4 { font-size: 15px; margin: 22px 0 8px; color: var(--ink); }
+.assign-detail .d-section strong { color: var(--ink); font-weight: 700; }
+.assign-detail .d-section a { color: var(--orange); text-decoration: underline; text-underline-offset: 2px; }
+.assign-detail ol.numbered {
+  list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: wnum;
+}
+.assign-detail ol.numbered li {
+  padding-left: 28px; position: relative; counter-increment: wnum;
+  font-size: 15px; color: var(--muted-2);
+}
+.assign-detail ol.numbered li::before {
+  content: counter(wnum) "."; position: absolute; left: 0; top: 0;
+  color: var(--orange); font-weight: 700;
+}
 .assign-detail ul.bullets {
   list-style: none; padding: 0; margin: 0;
   display: grid; gap: 12px;

@@ -41,6 +41,53 @@
       .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
   }
+  /* Markdown-light → HTML. All text is escaped FIRST, so only the tags produced
+     below can ever reach the DOM (inga rå HTML-taggar från databasen).
+     Stöd: **fet**, *kursiv*, [text](https://…), "## rubrik", "- punkt", "1. punkt",
+     tom rad = nytt stycke, enkel radbrytning = <br>. */
+  function inlineFmt(s) {
+    return esc(s)
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)]+|mailto:[^\s)]+)\)/g,
+        '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+      .replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*([^*\s][^*\n]*?)\*/g, "<em>$1</em>");
+  }
+  function renderRich(text) {
+    var lines = String(text || "").replace(/\r\n?/g, "\n").split("\n");
+    var html = "", para = [], list = null; // list = { tag, items[] }
+    function flushPara() {
+      if (para.length) html += "<p>" + para.map(inlineFmt).join("<br>") + "</p>";
+      para = [];
+    }
+    function flushList() {
+      if (!list) return;
+      html += "<" + list.tag + (list.tag === "ul" ? ' class="bullets"' : ' class="numbered"') + ">" +
+        list.items.map(function (i) { return "<li>" + inlineFmt(i) + "</li>"; }).join("") +
+        "</" + list.tag + ">";
+      list = null;
+    }
+    lines.forEach(function (raw) {
+      var line = raw.replace(/\s+$/, ""), m;
+      if (!line.trim()) { flushPara(); flushList(); return; }
+      if ((m = /^\s*(?:[-*•])\s+(.+)$/.exec(line))) {
+        flushPara();
+        if (!list || list.tag !== "ul") { flushList(); list = { tag: "ul", items: [] }; }
+        list.items.push(m[1]);
+      } else if ((m = /^\s*\d+[.)]\s+(.+)$/.exec(line))) {
+        flushPara();
+        if (!list || list.tag !== "ol") { flushList(); list = { tag: "ol", items: [] }; }
+        list.items.push(m[1]);
+      } else if ((m = /^\s*#{1,4}\s+(.+)$/.exec(line))) {
+        flushPara(); flushList();
+        html += "<h4>" + inlineFmt(m[1]) + "</h4>";
+      } else {
+        flushList();
+        para.push(line.trim());
+      }
+    });
+    flushPara(); flushList();
+    return html;
+  }
   function reapplyLang() {
     if (window.WenableLang) window.WenableLang.set(window.WenableLang.get());
   }
@@ -167,6 +214,9 @@
       ".wadm-select{appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--muted,#8aa0bd) 50%),linear-gradient(135deg,var(--muted,#8aa0bd) 50%,transparent 50%);background-position:calc(100% - 18px) 17px,calc(100% - 13px) 17px;background-size:5px 5px,5px 5px;background-repeat:no-repeat;}",
       /* native <option> popups don't inherit the field's transparent background — give them a solid one so text isn't invisible until hover */
       ".wadm-select option{background:var(--bg-2,#0e1e36);color:var(--ink,#eaf1fb);}",
+      ".wadm-toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;}",
+      ".wadm-toolbar button{font:inherit;font-size:12px;min-width:34px;padding:6px 10px;cursor:pointer;color:var(--ink,#eaf1fb);background:rgba(255,255,255,.04);border:1px solid var(--line-2,rgba(255,255,255,.16));transition:border-color .2s,background .2s;}",
+      ".wadm-toolbar button:hover,.wadm-toolbar button:focus-visible{outline:none;border-color:var(--orange,#f39019);background:rgba(255,255,255,.08);}",
       ".wadm-hint{font-size:12px;color:var(--muted,#8aa0bd);margin-top:7px;line-height:1.45;}",
       ".wadm-error{font-size:13px;color:#ff8b8b;margin:2px 0 16px;min-height:1px;}",
       ".wadm-actions{display:flex;align-items:center;gap:14px;margin-top:26px;flex-wrap:wrap;}",
@@ -313,10 +363,13 @@
     list.querySelectorAll('[data-custom="1"]').forEach(function (n) { n.remove(); });
     stage.querySelectorAll('.assign-detail[data-custom="1"]').forEach(function (n) { n.remove(); });
 
-    var items = loadAssignments();
+    // senaste inlagda överst (created_at fallande)
+    var items = loadAssignments().slice().sort(function (a, b) {
+      return String(b.created_at || "").localeCompare(String(a.created_at || ""));
+    });
     // styr tomtillståndet: "välj ett uppdrag" vs "kommer snart" (CSS gör resten)
     document.body.classList.toggle("wadm-has-assignments", items.length > 0);
-    var anchor = $("h4", list); // insert rows right after the count header
+    var cursor = $("h4", list); // rader infogas i ordning efter räknerubriken
     var loggedIn = isLoggedIn();
 
     items.forEach(function (a) {
@@ -335,15 +388,15 @@
           '<span class="row-tag' + (filled ? " closed" : "") + '" data-sv="' + esc(statusSv + " · " + catSv) + '">' +
             esc(statusEn + " · " + catEn) + '</span>' +
         '</div>';
-      if (anchor && anchor.nextSibling) list.insertBefore(row, anchor.nextSibling);
+      if (cursor) list.insertBefore(row, cursor.nextSibling);
       else list.appendChild(row);
+      cursor = row;
 
       /* detail article */
       var tags = (a.tags || []).map(function (t) {
         return '<span class="tag">' + esc(t) + '</span>';
       }).join("");
-      var workHtml = String(a.work || "").split(/\n{2,}|\n/).filter(Boolean)
-        .map(function (p) { return "<p>" + esc(p) + "</p>"; }).join("");
+      var workHtml = renderRich(a.work);
 
       var detail = el("article", { "class": "assign-detail", "id": a.id, "data-custom": "1" });
       detail.innerHTML =
@@ -457,8 +510,17 @@
           '</div>' +
           '<div class="wadm-field">' +
             '<label for="wadm-work" data-sv="Arbetet">The work</label>' +
+            '<div class="wadm-toolbar" role="toolbar" aria-label="Formatting" data-sv-attr-aria-label="Formatering">' +
+              '<button type="button" data-fmt="bold" title="Bold (Ctrl/⌘+B)" data-sv-attr-title="Fet (Ctrl/⌘+B)"><b>B</b></button>' +
+              '<button type="button" data-fmt="italic" title="Italic (Ctrl/⌘+I)" data-sv-attr-title="Kursiv (Ctrl/⌘+I)"><i>I</i></button>' +
+              '<button type="button" data-fmt="heading" title="Subheading" data-sv-attr-title="Underrubrik">H</button>' +
+              '<button type="button" data-fmt="ul" title="Bulleted list" data-sv-attr-title="Punktlista">&bull;&ensp;List</button>' +
+              '<button type="button" data-fmt="ol" title="Numbered list" data-sv-attr-title="Numrerad lista">1.&ensp;List</button>' +
+              '<button type="button" data-fmt="link" title="Link" data-sv-attr-title="Länk">Link</button>' +
+            '</div>' +
             '<textarea class="wadm-textarea" id="wadm-work" name="work" ' +
-              'data-sv-attr-placeholder="Beskriv arbetet. Lämna en tom rad mellan stycken." placeholder="Describe the work. Leave a blank line between paragraphs."></textarea>' +
+              'data-sv-attr-placeholder="Beskriv arbetet. Tom rad = nytt stycke. Använd knapparna ovan för fetstil, listor m.m." placeholder="Describe the work. Blank line = new paragraph. Use the buttons above for bold, lists etc."></textarea>' +
+            '<div class="wadm-hint" data-sv="Formatering: **fet**, *kursiv*, ## underrubrik, - punktlista, 1. numrerad lista, [text](https://…)">Formatting: **bold**, *italic*, ## subheading, - bullet list, 1. numbered list, [text](https://…)</div>' +
           '</div>' +
           '<div class="wadm-field row2">' +
             '<div><label for="wadm-tags" data-sv="Fokusområden (kommaseparerade)">Focus areas (comma-separated)</label>' +
@@ -477,6 +539,16 @@
 
     addOverlay.addEventListener("click", function (e) {
       if (e.target === addOverlay || e.target.hasAttribute("data-wadm-dismiss")) closeAdd();
+    });
+    var workTa = $("#wadm-work", addOverlay);
+    $(".wadm-toolbar", addOverlay).addEventListener("click", function (e) {
+      var btn = e.target.closest("[data-fmt]");
+      if (btn) applyFmt(workTa, btn.getAttribute("data-fmt"));
+    });
+    workTa.addEventListener("keydown", function (e) {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      var k = e.key.toLowerCase();
+      if (k === "b" || k === "i") { e.preventDefault(); applyFmt(workTa, k === "b" ? "bold" : "italic"); }
     });
     $("#wadm-add-form", addOverlay).addEventListener("submit", async function (e) {
       e.preventDefault();
@@ -520,6 +592,37 @@
       if (saved && saved.id) location.hash = "#" + saved.id;
     });
   }
+  /* verktygsfält: infoga Markdown-light-tecken i textarean "Arbetet" */
+  function fmtWrap(ta, before, after, ph) {
+    var a = ta.selectionStart, b = ta.selectionEnd, sel = ta.value.slice(a, b) || ph;
+    ta.setRangeText(before + sel + after, a, b, "end");
+    ta.setSelectionRange(a + before.length, a + before.length + sel.length);
+    ta.focus();
+  }
+  function fmtLines(ta, prefix) {
+    var v = ta.value, a = v.lastIndexOf("\n", ta.selectionStart - 1) + 1, e = v.indexOf("\n", ta.selectionEnd);
+    if (e < 0) e = v.length;
+    var n = 0, out = v.slice(a, e).split("\n").map(function (l) {
+      return (typeof prefix === "function" ? prefix(++n) : prefix) + l;
+    }).join("\n");
+    ta.setRangeText(out, a, e, "select");
+    ta.focus();
+  }
+  function applyFmt(ta, kind) {
+    if (kind === "bold")        fmtWrap(ta, "**", "**", isSV() ? "fet text" : "bold text");
+    else if (kind === "italic") fmtWrap(ta, "*", "*", isSV() ? "kursiv text" : "italic text");
+    else if (kind === "heading") fmtLines(ta, "## ");
+    else if (kind === "ul")     fmtLines(ta, "- ");
+    else if (kind === "ol")     fmtLines(ta, function (n) { return n + ". "; });
+    else if (kind === "link") {
+      var url = "https://";
+      var a = ta.selectionStart, b = ta.selectionEnd, sel = ta.value.slice(a, b) || (isSV() ? "länktext" : "link text");
+      ta.setRangeText("[" + sel + "](" + url + ")", a, b, "end");
+      ta.setSelectionRange(a + sel.length + 3, a + sel.length + 3 + url.length);
+      ta.focus();
+    }
+  }
+
   /* växla modalens rubriker/knapp mellan lägena "nytt" och "redigera" */
   function setAddModalMode(mode) {
     var eb  = $("#wadm-add-mode", addOverlay);
