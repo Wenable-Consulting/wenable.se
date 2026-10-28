@@ -30,15 +30,36 @@ Filen `CNAME` i repot (`wenable.se`) binder domänen till Pages – ta inte bort
 
 ## Struktur
 
+v2 (ny design, portad från Lovable till ren HTML/CSS – **ingen JavaScript**):
+
 ```
-index.html                 Startsida (roterande rubrik "Vi förverkligar …")
-For Clients.html           För kunder (tjänster, arbetssätt, FAQ)
-For Consultants.html       För konsulter (nätverk, FAQ)
-Wenable are us.html        Teamet (PLACEHOLDER-personer, byts ut mot riktiga)
+index.html                 Startsida (CSS-animerad rubrik "We enable your …")
+expertise.html             Expertis, utvalda uppdrag, FAQ
+for-specialists.html       För specialister
+about.html                 Teamet + Trust & commitments (#trust)
+assignments.html           Uppdrag (statisk HTML, en brief per referensnummer, se nedan)
+assets/v2.css              All CSS för v2-sidorna
+assets/icons.svg           Ikon-sprite (Lucide), används via <use href="assets/icons.svg#namn">
+assets/img/                v2-bilder som WebP (assets/img/team/ för porträtt), hero-dots.svg
+assets/fonts/              Självhostad Mona Sans (samma filer som Google Fonts, latin + latin-ext)
+sitemap.xml, robots.txt    SEO
+For Clients.html, For Consultants.html, Wenable are us.html
+                           Omdirigeringar (meta refresh) till de nya sidorna
+```
+
+- Header, kontakt och footer är kopierade i varje v2-sida. Ändra dem på alla fyra sidorna.
+- Nya bilder: konvertera till WebP i ungefär 2x visningsstorlek, t.ex.
+  `cwebp -q 80 -m 6 -sharp_yuv -resize 1200 0 bild.png -o bild.webp` (logotyper: `-lossless`).
+- Interaktivitet utan JS: `<details>` (FAQ), radioknappar (How we work), `popover` (mobilmeny),
+  CSS scroll-driven animations (panel-lyft, sektionsintoning). Lägg inte till `<script>` –
+  v2-sidornas CSP har `script-src 'none'` och inga `style=`-attribut tillåts.
+
+v1 (finns kvar):
+
+```
 Wenable CV.html            CV-mall (demo: Erik Lindqvist)
-assignments.html           Uppdrag (Supabase-drivet, admin-login)
 assets/
-  wenable.css, site.css    Sidstilar (mycket CSS ligger även inline i <style> per sida)
+  wenable.css, site.css    v1-sidstilar (mycket CSS ligger även inline i <style> per sida)
   admin.js                 Login + uppdrag-CRUD mot Supabase (se nedan)
   i18n.js                  Språkväxling SV/EN (se nedan)
   bg-network.js            Animerad bakgrund (canvas)
@@ -47,6 +68,45 @@ CNAME, DEPLOY.md           Pages-domän + driftsättningsguide
 ```
 
 ---
+
+## Uppdrag (statisk HTML) – så lägger du till, ändrar och tar bort
+
+Uppdragen ligger direkt i HTML:en. Det finns ingen inloggning och ingen databas på sajten.
+Ändra i repot och pusha, så är ändringen live.
+
+Två ställen:
+
+1. `assignments.html` – alla öppna uppdrag, senaste överst.
+2. `for-specialists.html` – förhandsvisning av de **3 senaste**, plus raden
+   "+N more assignment(s)". Håll den i synk med `assignments.html`.
+
+Varje uppdrag består av två delar i `.assignment-board`, **i samma ordning**:
+
+```html
+<!-- 1. Fliken i listan (inuti <nav class="assignment-list">) -->
+<a class="assignment-tab" href="#WEN-2026-104">Titel</a>
+
+<!-- 2. Briefen (efter .assignment-sidebar). id = referensnumret. -->
+<article class="assignment-detail" id="WEN-2026-104"><div class="assignment-detail-content">
+  <span class="assignment-example">WEN-2026-104 · IT</span>   <!-- IT | AI | CyberSecurity -->
+  <h3>Titel</h3>
+  <p>Ingress (en eller flera <p>).</p>
+  <dl><div><dt>Stack</dt><dd>…</dd></div><div><dt>Start</dt><dd>…</dd></div><div><dt>Location</dt><dd>…</dd></div></dl>
+  <div class="assignment-full-brief">            <!-- bara i assignments.html -->
+    <div class="assignment-brief-section"><h4>Rubrik</h4><p>…</p><ul><li>…</li></ul></div>
+  </div>
+  <div class="assignment-actions">
+    <a href="mailto:management@wenable.se?subject=WEN-2026-104" class="action-link primary">Apply / Discuss …</a>
+  </div>
+</div></article>
+```
+
+- Första uppdraget visas tills någon klickar. Klick sätter `#REF` i adressen (`:target`), så
+  `assignments.html#WEN-2026-104` är en direktlänk.
+- CSS:en (`.assignment-board:has(...:nth-of-type(k):target)`) räcker för **högst 20** uppdrag.
+- Svensk brief: lägg `lang="sv"` på `<article>`.
+- Tillsatt uppdrag: ta bort både fliken och briefen. Uppdatera förhandsvisningen.
+- Uppdragen flyttades hit från Supabase 2026-10-26 (4 öppna: WEN-2026-103, -092, -021, -102).
 
 ## Tvåspråkighet (i18n) – VIKTIGT arbetsmönster
 
@@ -64,7 +124,11 @@ Engelska är **standardtexten** i HTML:en. Svenskan ligger i `data-sv`-attribut 
 
 ---
 
-## Admin-login + uppdrag (Supabase)
+## Admin-login + uppdrag (Supabase) – v1, används inte längre av sajten
+
+> Sedan v2 (2026-10-26) läser ingen sida från Supabase. Avsnittet beskriver v1 och projektet finns kvar.
+> `assets/admin.js`, `i18n.js`, `bg-network.js`, `vendor/supabase.js`, `wenable.css` och `site.css` används inte av v2-sidorna.
+
 
 Statisk sajt kan inte ha egen backend, så **Supabase** sköter inloggning + delad databas. All logik ligger i `assets/admin.js`.
 
@@ -153,4 +217,4 @@ Pages bygger om automatiskt (~1 min). Verifiera live med `curl -sI https://wenab
 - **Browser-cache** vid lokal test – använd cache-buster (`?v=N`), inte bara reload.
 - **Ändra inte** `autodiscover`-CNAME (e-post) eller `CNAME`-filen (domän).
 - **`git` + iCloud krockar** – repot ligger därför i `~/Utveckling`, inte i iCloud-mappen. Håll det så.
-- Uppdrags-demodata är borttaget; listan fylls enbart från Supabase.
+- Uppdragen är statisk HTML. Se avsnittet "Uppdrag (statisk HTML)".
